@@ -53,6 +53,23 @@ def get_current_exit_country() -> str:
     return ""
 
 
+def _close_general_circuits(controller: Controller) -> None:
+    """Close existing GENERAL circuits so Tor is forced to build fresh ones.
+
+    NEWNYM alone only tells Tor not to reuse the old circuit for *new*
+    streams — it doesn't rebuild anything by itself. If nothing forces a new
+    stream through the SocksPort, the old circuit just keeps sitting there
+    and gets reported back as "the current exit" indefinitely. Closing it
+    outright makes Tor build a replacement right away.
+    """
+    for circ in controller.get_circuits():
+        if circ.purpose == "GENERAL":
+            try:
+                controller.close_circuit(circ.id)
+            except Exception as exc:
+                log.warning("Could not close circuit %s: %s", circ.id, exc)
+
+
 def set_exit_country(country_code: str | None) -> None:
     """Restrict (or clear, if None/'') the exit country and rebuild circuits."""
     with _connect() as controller:
@@ -63,12 +80,14 @@ def set_exit_country(country_code: str | None) -> None:
             controller.set_conf("ExitNodes", "")
             controller.set_conf("StrictNodes", "0")
         controller.signal(Signal.NEWNYM)
+        _close_general_circuits(controller)
 
 
 def new_identity() -> None:
     """Ask Tor for a fresh circuit (new exit IP) without changing the country."""
     with _connect() as controller:
         controller.signal(Signal.NEWNYM)
+        _close_general_circuits(controller)
 
 
 def is_alive() -> bool:
