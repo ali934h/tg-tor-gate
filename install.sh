@@ -22,7 +22,7 @@ fi
 
 info "Installing system packages (tor, python3, git)…"
 apt-get update -qq
-apt-get install -y -qq tor python3 python3-venv python3-pip git curl >/dev/null
+apt-get install -y -qq tor tor-geoipdb python3 python3-venv python3-pip git curl >/dev/null
 ok "System packages installed"
 
 # --- Prompt for configuration -------------------------------------------
@@ -118,9 +118,6 @@ LOCATIONS_CACHE_FILE = "locations_cache.json"
 LOCATIONS_CACHE_TTL_HOURS = 6
 LOCATIONS_PER_PAGE = 8
 MIN_EXIT_RELAYS = 1
-
-IP_CHECK_URL = "https://api.ipify.org?format=json"
-IP_CHECK_TIMEOUT_SEC = 15
 EOF
 chmod 600 "$INSTALL_DIR/config.py"
 ok "config.py written"
