@@ -1,3 +1,2 @@
 python-telegram-bot>=20,<22
 stem>=1.8
-requests[socks]>=2.31
