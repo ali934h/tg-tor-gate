@@ -18,12 +18,8 @@ it always matches the real, currently running exit relays.
 | ------------- | --------------------------------------------------------- |
 | `/status`     | Current exit country, SOCKS5 address, Tor status          |
 | `/ip`         | Check the current exit IP and its country (live, via Tor) |
-| `/locations`  | Paginated list of countries with active exit relays — tap to switch |
-| `/random`     | Switch to a random exit country                           |
-| `/any`        | Clear the country restriction (any exit worldwide)        |
+| `/locations`  | Paginated list of countries with active exit relays — tap to switch, plus "Any country" and "Refresh" buttons |
 | `/newip`      | New circuit, same country (fresh exit IP)                 |
-| `/refresh`    | Force-refresh the live country list from Onionoo          |
-| `/restart`    | Restart the Tor service                                   |
 | `/help`       | Show all commands                                         |
 
 All commands are also registered as the bot's **menu button** in Telegram, so
