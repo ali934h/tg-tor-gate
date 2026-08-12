@@ -24,7 +24,3 @@ LOCATIONS_CACHE_FILE = "locations_cache.json"
 LOCATIONS_CACHE_TTL_HOURS = 6
 LOCATIONS_PER_PAGE = 8         # countries shown per page in the /locations keyboard
 MIN_EXIT_RELAYS = 1            # hide countries with fewer active exit relays than this
-
-# --- IP check ---
-IP_CHECK_URL = "https://api.ipify.org?format=json"
-IP_CHECK_TIMEOUT_SEC = 15
