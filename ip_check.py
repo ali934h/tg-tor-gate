@@ -1,42 +1,60 @@
-"""Check the current Tor exit IP and its country.
+"""Check the current Tor circuit's exit relay: IP and country.
 
-The request is made *through* Tor's own SOCKS5 proxy, so the result reflects
-exactly what any application using that proxy would see.
+This is read directly from Tor's own ControlPort — the exit relay of the
+most recently built circuit, plus Tor's built-in GeoIP database — instead
+of making an external HTTP request.
+
+External IP-lookup services (ipapi.co, ip-api.com, etc.) rate-limit by
+source IP, and a Tor exit IP is shared by thousands of concurrent Tor
+users, so those services return 429 Too Many Requests very often. Tor
+already knows the exit relay's address and country locally, so there is no
+need to leave the network for this at all.
 """
 
 from __future__ import annotations
 
 import logging
 
-import requests
-
-import config
+from countries import country_name
+from tor_control import _connect
 
 log = logging.getLogger("tg-tor-gate.ip_check")
 
 
-def _socks_proxies() -> dict:
-    proxy_url = f"socks5h://{config.TOR_SOCKS_HOST}:{config.TOR_SOCKS_PORT}"
-    return {"http": proxy_url, "https": proxy_url}
-
-
 def current_exit() -> dict:
     """Return {'ip': ..., 'country_code': ..., 'country_name': ...} for the
-    current Tor exit, or raise on failure.
+    exit relay of the most recently built circuit, or raise if none exists
+    yet (e.g. called immediately after switching country).
     """
-    resp = requests.get(
-        "https://ipapi.co/json/",
-        proxies=_socks_proxies(),
-        timeout=config.IP_CHECK_TIMEOUT_SEC,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    with _connect() as controller:
+        circuits = [
+            c
+            for c in controller.get_circuits()
+            if c.purpose == "GENERAL" and c.status == "BUILT"
+        ]
+        if not circuits:
+            raise RuntimeError("No circuit is built yet — try again in a few seconds")
 
-    if data.get("error"):
-        raise RuntimeError(data.get("reason", "ipapi.co returned an error"))
+        exit_fingerprint = circuits[-1].path[-1][0]
+
+        address = "?"
+        try:
+            desc = controller.get_network_status(exit_fingerprint)
+            if desc:
+                address = desc.address
+        except Exception as exc:
+            log.warning("Could not resolve exit relay descriptor: %s", exc)
+
+        code = "?"
+        if address != "?":
+            try:
+                result = controller.get_info(f"ip-to-country/{address}", default="?")
+                code = (result or "?").upper()
+            except Exception as exc:
+                log.warning("Could not resolve exit relay country: %s", exc)
 
     return {
-        "ip": data.get("ip", "?"),
-        "country_code": (data.get("country_code") or data.get("country") or "?").upper(),
-        "country_name": data.get("country_name", "?"),
+        "ip": address,
+        "country_code": code,
+        "country_name": country_name(code) if code != "?" else "?",
     }
