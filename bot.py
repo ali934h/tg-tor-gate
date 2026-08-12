@@ -8,8 +8,6 @@ from the Tor Project's Onionoo API — see locations.py).
 from __future__ import annotations
 
 import logging
-import random
-import subprocess
 import time
 
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -40,11 +38,7 @@ COMMANDS = [
     BotCommand("status", "Show current exit country and proxy info"),
     BotCommand("ip", "Check the current exit IP and country"),
     BotCommand("locations", "Browse and pick an exit country"),
-    BotCommand("random", "Switch to a random exit country"),
-    BotCommand("any", "Clear the country restriction (any exit)"),
     BotCommand("newip", "Request a new circuit (same country)"),
-    BotCommand("refresh", "Refresh the live country list"),
-    BotCommand("restart", "Restart the Tor service"),
 ]
 
 HELP_TEXT = (
@@ -55,12 +49,10 @@ HELP_TEXT = (
     "/status — current exit country, proxy address, Tor status\n"
     "/ip — check the current exit IP and country (live, via Tor)\n"
     "/locations — browse countries with active exit relays and pick one\n"
-    "/random — switch to a random exit country\n"
-    "/any — remove the country restriction (any exit worldwide)\n"
     "/newip — new circuit, same country\n"
-    "/refresh — force-refresh the live country list from Onionoo\n"
-    "/restart — restart the Tor service\n"
-    "/help — this message"
+    "/help — this message\n\n"
+    "_Tip: /locations also has \"Any country\" and \"Refresh\" buttons at the "
+    "bottom of the list._"
 )
 
 
@@ -192,37 +184,6 @@ async def locations_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 
-async def random_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not await _guard(update):
-        return
-    try:
-        countries_list = locations.get_exit_countries()
-        code = random.choice(countries_list)[0]
-    except Exception as exc:
-        await update.message.reply_text(f"❌ Could not fetch the country list: {exc}")
-        return
-
-    msg = await update.message.reply_text(f"Switching to a random country…")
-    try:
-        text = await _apply_country(update, code)
-        await msg.edit_text(text, parse_mode=ParseMode.MARKDOWN)
-    except Exception as exc:
-        log.exception("set_exit_country failed")
-        await msg.edit_text(f"❌ Could not switch country: {exc}")
-
-
-async def any_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not await _guard(update):
-        return
-    msg = await update.message.reply_text("Removing the country restriction…")
-    try:
-        text = await _apply_country(update, None)
-        await msg.edit_text(text, parse_mode=ParseMode.MARKDOWN)
-    except Exception as exc:
-        log.exception("set_exit_country failed")
-        await msg.edit_text(f"❌ Could not clear the restriction: {exc}")
-
-
 async def newip_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     global _last_newnym
     if not await _guard(update):
@@ -243,32 +204,6 @@ async def newip_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as exc:
         log.exception("new_identity failed")
         await msg.edit_text(f"❌ Could not request a new circuit: {exc}")
-
-
-async def refresh_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not await _guard(update):
-        return
-    msg = await update.message.reply_text("Refreshing the country list from Onionoo…")
-    try:
-        countries_list = locations.get_exit_countries(force_refresh=True)
-        await msg.edit_text(f"✅ Refreshed — {len(countries_list)} countries available.")
-    except Exception as exc:
-        log.exception("refresh failed")
-        await msg.edit_text(f"❌ Refresh failed: {exc}")
-
-
-async def restart_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not await _guard(update):
-        return
-    msg = await update.message.reply_text("Restarting the Tor service…")
-    try:
-        subprocess.run(["systemctl", "restart", "tor"], check=True, timeout=30)
-        time.sleep(3)
-        alive = tor_control.is_alive()
-        await msg.edit_text("✅ Tor restarted." if alive else "⚠️ Restarted, but ControlPort not yet reachable.")
-    except Exception as exc:
-        log.exception("restart failed")
-        await msg.edit_text(f"❌ Restart failed: {exc}")
 
 
 # ------------------------------------------------------------ callback query
@@ -341,11 +276,7 @@ def main() -> None:
     app.add_handler(CommandHandler("status", status_cmd))
     app.add_handler(CommandHandler("ip", ip_cmd))
     app.add_handler(CommandHandler("locations", locations_cmd))
-    app.add_handler(CommandHandler("random", random_cmd))
-    app.add_handler(CommandHandler("any", any_cmd))
     app.add_handler(CommandHandler("newip", newip_cmd))
-    app.add_handler(CommandHandler("refresh", refresh_cmd))
-    app.add_handler(CommandHandler("restart", restart_cmd))
     app.add_handler(CallbackQueryHandler(locations_callback, pattern=r"^loc:"))
 
     log.info("tg-tor-gate starting…")
